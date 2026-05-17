@@ -70,6 +70,11 @@
   assert(type(gap) in expected, message: invalid("gap", expected, gap))
 }
 
+/// Validate the `leading-in-gap` parameter of the `sidenote` function.
+#let validate-leading-in-gap(leading-in-gap) = {
+  assert(type(leading-in-gap) == bool, message: invalid("leading-in-gap", bool, leading-in-gap))
+}
+
 /// Validate the `numbering` parameter of the `sidenote` function.
 #let validate-numbering(numbering) = {
   let expected = (str, function, type(none))
@@ -98,7 +103,7 @@
 
   // Check for required parameters.
   let expected = (
-    "side", "dy", "padding", "gap", "numbering", "counter", "format", "body"
+    "side", "dy", "padding", "gap", "leading-in-gap", "numbering", "counter", "format", "body"
   )
   for key in expected {
     assert(key in parameters, message: "missing parameter: " + key)
@@ -112,6 +117,7 @@
   validate-dy(parameters.dy)
   validate-padding(parameters.padding)
   validate-gap(parameters.gap)
+  validate-leading-in-gap(parameters.leading-in-gap)
   validate-numbering(parameters.numbering)
   validate-counter(parameters.counter)
   validate-format(parameters.format)

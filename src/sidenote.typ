@@ -57,6 +57,8 @@
 /// - `dy`: A custom offset by which the note should be moved along the y-axis.
 /// - `padding`: The space between the note and the page or content border.
 /// - `gap`: The minimum gap between two consecutive notes.
+/// - `leading-in-gap`: Whether to include the paragraph leading in the overlap
+///   calculation.
 /// - `numbering`: How the note should be numbered.
 /// - `counter`: The counter to be used for numbering.
 /// - `format`: The "show rule" of the note.
@@ -66,6 +68,7 @@
   dy: 0pt,
   padding: 2em,
   gap: 0.4em,
+  leading-in-gap: true,
   numbering: none,
   counter: counter,
   format: it => it.default,
@@ -77,6 +80,7 @@
     dy: dy,
     padding: padding,
     gap: gap,
+    leading-in-gap: leading-in-gap,
     numbering: numbering,
     counter: counter,
     format: format,
@@ -169,7 +173,8 @@
       let prev = notes.at(-1, default: none)
       position.y += if prev != none and prev.side == side {
         let gap = calc.max(gap, prev.gap)
-        let overlap = prev.position.y + prev.height - position.y + leading + gap
+        let extra = if leading-in-gap { leading } else { 0pt }
+        let overlap = prev.position.y + prev.height - position.y + extra + gap
         calc.max(0pt, overlap)
       }
 
@@ -183,6 +188,7 @@
         height: note-height,
         side: side,
         gap: gap,
+        leading-in-gap: leading-in-gap,
         padding: padding,
         dir: dir,
         body: note-body,
@@ -193,7 +199,8 @@
       let current = new
       for (i, prev) in notes.enumerate().rev().filter(((_, note)) => note.side == side) {
         let gap = calc.max(current.gap, prev.gap)
-        let overlap = prev.position.y + prev.height - current.position.y + leading + gap
+        let extra = if current.leading-in-gap { leading } else { 0pt }
+        let overlap = prev.position.y + prev.height - current.position.y + extra + gap
         notes.at(i).position.y -= calc.max(0pt, overlap)
         current = notes.at(i)
       }
