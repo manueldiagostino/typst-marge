@@ -66,6 +66,7 @@
 #let sidenote(
   side: auto,
   dy: 0pt,
+  anchor: "top",
   padding: 2em,
   gap: 0.4em,
   leading-in-gap: true,
@@ -78,6 +79,7 @@
   validate(
     side: side,
     dy: dy,
+    anchor: anchor,
     padding: padding,
     gap: gap,
     leading-in-gap: leading-in-gap,
@@ -158,7 +160,7 @@
     // Calculate position of note on y-axis. The note is moved up, so that it
     // aligns with the line of the paragraph.
     let position = here().position()
-    position.y += dy.to-absolute() - measure[x].height
+    position.y += dy.to-absolute() - if anchor == "top" { measure[x].height } else { note-height }
 
     // Set x-position of note depending on side.
     position.x = if side == right and page-width != auto { page-width - margin }

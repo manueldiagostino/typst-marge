@@ -29,6 +29,12 @@
   assert(side in expected, message: invalid("side", expected, side))
 }
 
+/// Validate the `anchor` parameter of the `sidenote` function.
+#let validate-anchor(anchor) = {
+  let expected = ("top", "bottom")
+  assert(anchor in expected, message: invalid("anchor", expected, anchor))
+}
+
 /// Validate the `dy` parameter of the `sidenote` function.
 #let validate-dy(dy) = {
   let expected = (length, ratio, relative)
@@ -103,7 +109,7 @@
 
   // Check for required parameters.
   let expected = (
-    "side", "dy", "padding", "gap", "leading-in-gap", "numbering", "counter", "format", "body"
+    "side", "dy", "anchor", "padding", "gap", "leading-in-gap", "numbering", "counter", "format", "body"
   )
   for key in expected {
     assert(key in parameters, message: "missing parameter: " + key)
@@ -115,6 +121,7 @@
   // Validate parameters.
   validate-side(parameters.side)
   validate-dy(parameters.dy)
+  validate-anchor(parameters.anchor)
   validate-padding(parameters.padding)
   validate-gap(parameters.gap)
   validate-leading-in-gap(parameters.leading-in-gap)
