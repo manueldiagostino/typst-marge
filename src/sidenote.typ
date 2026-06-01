@@ -1,8 +1,8 @@
 #import "resolve.typ": *
 #import "validate.typ": validate
 
-/// Get the margin note state for a specific page.
-#let page-state(page) = state("marge/page-" + str(page), ())
+/// Global state for all margin notes across the document.
+#let global-state = state("marge/notes", ())
 /// Get the container mark metadata for a specific page.
 #let page-container(page) = metadata("marge/container-" + str(page))
 /// The sidenote counter.
@@ -34,7 +34,66 @@
 /// in the right margin.
 #let container = context {
   page-container(here().page())
-  for note in page-state(here().page()).final() {
+
+  let all-notes = global-state.final()
+  let current-page = here().page()
+  let notes = all-notes.filter(note => note.anchor.position().page == current-page)
+  let leading = par.leading.to-absolute()
+  let (width: page-width, height: page-height) = resolve-page-size()
+  let bottom-margin = resolve-margin(bottom)
+
+  // Compute final positions with overlap avoidance and overflow correction
+  let computed = ()
+  for note in notes {
+    let position = note.anchor.position()
+    position.y += note.dy.to-absolute() - if note.anchor-param == "top" { measure[x].height } else { note.height }
+
+    // Set x-position of note depending on side.
+    position.x = if note.side == right and page-width != auto { page-width - note.margin }
+                 else { 0pt }
+
+    if note.dir == rtl { position.x += note.margin }
+
+    // Move note down to avoid overlap with previous one.
+    let prev = computed.at(-1, default: none)
+    if prev != none and prev.side == note.side {
+      let gap = calc.max(note.gap, prev.gap)
+      let extra = if note.leading-in-gap { leading } else { 0pt }
+      let overlap = prev.position.y + prev.height - position.y + extra + gap
+      position.y += calc.max(0pt, overlap)
+    }
+
+    // Move note up to avoid overflow into bottom page margin.
+    let overflow = position.y + note.height - page-height + bottom-margin
+    position.y -= calc.max(0pt, overflow)
+
+    computed.push((
+      position: position,
+      height: note.height,
+      side: note.side,
+      gap: note.gap,
+      leading-in-gap: note.leading-in-gap,
+      padding: note.padding,
+      dir: note.dir,
+      body: note.body,
+    ))
+  }
+
+  // Move previous notes up to restore the gap and prevent overlap with
+  // previously moved up notes, starting from the bottom.
+  let current = computed.at(-1, default: none)
+  if current != none {
+    for (i, prev) in computed.enumerate().rev().filter(((_, n)) => n.side == current.side) {
+      if i >= computed.len() - 1 { continue }
+      let gap = calc.max(current.gap, prev.gap)
+      let extra = if current.leading-in-gap { leading } else { 0pt }
+      let overlap = prev.position.y + prev.height - current.position.y + extra + gap
+      computed.at(i).position.y -= calc.max(0pt, overlap)
+      current = computed.at(i)
+    }
+  }
+
+  for note in computed {
     set text(dir: note.dir)
     place(top + note.side, note.body, dy: note.position.y)
   }
@@ -97,13 +156,8 @@
     counter.step()
 
     context {
-      let state = page-state(here().page())
-      let note = state.final().at(state.get().len())
-      let pos = note.position
-      pos.x += note.padding.left
-
       let num = counter.display(numbering)
-      link(pos, super(num))
+      link(here(), super(num))
     }
   }
   
@@ -157,36 +211,13 @@
              else if type(dy) == ratio { dy * note-height }
              else if type(dy) == relative { dy.ratio * note-height + dy.length }
   
-    // Calculate position of note on y-axis. The note is moved up, so that it
-    // aligns with the line of the paragraph.
-    let position = here().position()
-    position.y += dy.to-absolute() - if anchor == "top" { measure[x].height } else { note-height }
-
-    // Set x-position of note depending on side.
-    position.x = if side == right and page-width != auto { page-width - margin }
-                 else { 0pt }
-
-    if dir == rtl { position.x += margin }
-
-    page-state(here().page()).update(notes => {
-      let position = position
-      
-      // Move note down to avoid overlap with previous one.
-      let prev = notes.at(-1, default: none)
-      position.y += if prev != none and prev.side == side {
-        let gap = calc.max(gap, prev.gap)
-        let extra = if leading-in-gap { leading } else { 0pt }
-        let overlap = prev.position.y + prev.height - position.y + extra + gap
-        calc.max(0pt, overlap)
-      }
-
-      // Move note up to avoid overflow into bottom page margin.
-      let overflow = position.y + note-height - page-height + bottom-margin
-      position.y -= calc.max(0pt, overflow)
-
-      // Summarize data of the new note.
-      let new = (
-        position: position,
+    // Register note in the global state with anchor location and metadata.
+    // All placement, overlap avoidance, and overflow correction happen
+    // in the container background phase.
+    let anchor-loc = here()
+    global-state.update(notes => {
+      notes + ((
+        anchor: anchor-loc,
         height: note-height,
         side: side,
         gap: gap,
@@ -194,43 +225,10 @@
         padding: padding,
         dir: dir,
         body: note-body,
-      )
-
-      // Move previous notes up to restore the gap and prevent overlap with
-      // previously moved up notes, starting from the bottom.
-      let current = new
-      for (i, prev) in notes.enumerate().rev().filter(((_, note)) => note.side == side) {
-        let gap = calc.max(current.gap, prev.gap)
-        let extra = if current.leading-in-gap { leading } else { 0pt }
-        let overlap = prev.position.y + prev.height - current.position.y + extra + gap
-        notes.at(i).position.y -= calc.max(0pt, overlap)
-        current = notes.at(i)
-      }
-
-      // Append new note to the list of all notes on this page.
-      notes + (new,)
+        dy: dy,
+        anchor-param: anchor,
+        margin: margin,
+      ),)
     })
-
-    // Place the note on the page. Only use this automatic placement
-    // if no container is used for this page!
-    if page-container(here().page()) not in query(metadata) {
-      let index = page-state(here().page()).get().len()
-      let final = page-state(here().page()).final().at(index, default: none)
-
-      if final != none {
-        assert(page-width != auto or final.side == left, message: {
-          "cannot place note on right margin of page with width auto.\n"
-          "hint: import the `container` value of the package and use it as the "
-          "page background or foreground"
-        })
-
-        box(place(
-          resolve-side(start),
-          final.body,
-          dx: final.position.x - here().position().x,
-          dy: final.position.y - here().position().y
-        ))
-      }
-    }
   }
 }
