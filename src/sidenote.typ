@@ -35,7 +35,7 @@
 #let container = context {
   page-container(here().page())
 
-  let all-notes = global-state.final()
+  let all-notes = global-state.get()
   let current-page = here().page()
   let notes = all-notes.filter(note => note.anchor.position().page == current-page)
   let leading = par.leading.to-absolute()
