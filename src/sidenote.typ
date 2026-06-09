@@ -32,7 +32,13 @@
 /// To be used as the page's `background` or `foreground` parameter when the
 /// page width is set to `auto`, as notes then cannot be automatically placed
 /// in the right margin.
-#let container = context {
+///
+/// # Parameters:
+/// - `top-safe` (auto-length): Minimum distance from the page top for margin notes.
+///   When set, no margin note will start higher than this offset from the top edge.
+/// - `bottom-safe` (auto-length): Additional padding beyond the bottom margin.
+///   When set, margin notes will keep at least this extra space from the bottom margin.
+#let container(top-safe: 0pt, bottom-safe: 0pt) = context {
   page-container(here().page())
 
   let all-notes = global-state.final()
@@ -41,6 +47,8 @@
   let leading = par.leading.to-absolute()
   let (width: page-width, height: page-height) = resolve-page-size()
   let bottom-margin = resolve-margin(bottom)
+  let top-safe-abs = top-safe.to-absolute()
+  let bottom-safe-abs = bottom-safe.to-absolute()
 
   // Compute final positions with overlap avoidance and overflow correction
   let computed = ()
@@ -63,8 +71,11 @@
       position.y += calc.max(0pt, overlap)
     }
 
+    // Enforce minimum distance from the top of the page.
+    position.y = calc.max(position.y, top-safe-abs)
+
     // Move note up to avoid overflow into bottom page margin.
-    let overflow = position.y + note.height - page-height + bottom-margin
+    let overflow = position.y + note.height - page-height + bottom-margin + bottom-safe-abs
     position.y -= calc.max(0pt, overflow)
 
     computed.push((
